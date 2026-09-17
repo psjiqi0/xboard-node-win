@@ -18,6 +18,10 @@ Xboard-Node 的 **Windows 版** 一键部署仓库。基于 [cedar2025/Xboard-No
 2. 管理员 PowerShell 中执行一键命令,传入 3 个变量:
 
 ```powershell
+# 开机自动启动(推荐,需管理员;注:-AutoStart 即注册开机自启计划任务)
+.\install.ps1 -PanelUrl "https://panel.example.com" -Token "你的通信密钥" -SID 1 -AutoStart
+
+# 仅本次手动运行(关闭即停止,无需管理员)
 .\install.ps1 -PanelUrl "https://panel.example.com" -Token "你的通信密钥" -SID 1
 ```
 
@@ -27,7 +31,7 @@ Xboard-Node 的 **Windows 版** 一键部署仓库。基于 [cedar2025/Xboard-No
 | `-Token` | Communication Key(通信密钥) | 面板「系统设置 → 通信设置」 |
 | `-SID` | machine_id(机器ID) | 面板「服务器管理」中添加服务器后生成的 ID |
 
-脚本自动完成:校验 exe → 生成 `config.yml`(机器模式)→ 后台启动节点 → 输出健康检查地址。
+脚本自动完成:校验 exe → 生成 `config.yml`(机器模式)→ 注册开机自启任务并立即运行 → 输出健康检查地址、状态命令。开机后免登录自动运行,日志写入 `xboard-node.log`。
 
 3. 面板「服务器管理」中即可看到该机器上线,绑定节点后由面板统一下发运行。
 
@@ -59,7 +63,13 @@ health_port: 65530
 ## 常用命令
 
 ```powershell
-# 停止
+# 开机自启任务:停止 / 启动 / 移除 / 查看状态
+Stop-ScheduledTask -TaskName XboardNode
+Start-ScheduledTask -TaskName XboardNode
+Unregister-ScheduledTask -TaskName XboardNode -Confirm:$false
+Get-ScheduledTask -TaskName XboardNode
+
+# 手动启动的实例:停止
 Stop-Process -Id (Get-Content xboard-node.pid)
 
 # 查看日志
@@ -77,9 +87,10 @@ Invoke-RestMethod http://127.0.0.1:65530/healthz
 netsh advfirewall firewall add rule name="xboard-node" dir=in action=allow protocol=TCP localport=443
 ```
 
-## 开机自启(可选)
+## 开机自启说明
 
-用 NSSM 注册为系统服务:
+- 一键脚本自带 `-AutoStart` 参数:以 SYSTEM 身份注册计划任务 `XboardNode`,**开机即自动运行、免登录**,无需任何第三方软件。
+- 如需系统服务方式,可用 NSSM:
 
 ```powershell
 nssm install xboard-node "C:\path\xboard-node.exe" "-c C:\path\config.yml"
