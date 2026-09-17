@@ -1,0 +1,144 @@
+<%
+local luci = luci
+local uci_model = require("luci.model.uci").cursor()
+local cfg = cfg or {}
+
+local function esc(s)
+	return s and luci.util.pcdata(tostring(s)) or ""
+end
+
+local function get_pid()
+	return luci.sys.exec("pidof tg-monbot 2>/dev/null"):gsub("%s+$", "")
+end
+local rp = get_pid()
+local on = (rp ~= "")
+
+local base = luci.dispatcher.build_url("admin/services/tg-monbot")
+
+-- allowed users display
+local ausers = {}
+if cfg.allowed_users then
+	for _, v in ipairs(cfg.allowed_users) do
+		ausers[#ausers + 1] = tostring(v)
+	end
+end
+local au_str = table.concat(ausers, ", ")
+%>
+
+<div class="cbi-map">
+	<h2><%:tg-monbot Telegram 监控机器人%></h2>
+	<em><%:通过 Telegram 管理 OpenWrt 路由器：远程 SSH 命令、交互式 Shell、访问日志监控（80/443/SSH）。在下方填写 Telegram 配置与路由器列表。%></em>
+
+	<div class="cbi-section cbi-section-node">
+		<h3><%:服务控制%></h3>
+		<div class="cbi-value">
+			<label class="cbi-value-title"><%:服务状态%></label>
+			<div class="cbi-value-field">
+				<span style="color:<%=on and '#090' or '#c00'%>;font-weight:bold"><%:服务状态:%></span>
+				<span style="font-weight:bold"><%= on and (translate("运行中 (PID) ") .. rp) or translate("未运行") %></span>
+			</div>
+		</div>
+		<div class="cbi-value">
+			<label class="cbi-value-title"><%:操作%></label>
+			<div class="cbi-value-field">
+				<a class="btn cbi-button cbi-button-apply" href="<%=base%>/start"><%:启动服务%></a>
+				<a class="btn cbi-button cbi-button-reset" href="<%=base%>/stop"><%:停止服务%></a>
+				<a class="btn cbi-button cbi-button-apply" href="<%=base%>/restart"><%:重启服务%></a>
+			</div>
+		</div>
+	</div>
+
+	<div class="cbi-section cbi-section-node">
+		<h3><%:Telegram 设置%></h3>
+		<form method="post" action="<%=base%>" class="cbi-form">
+			<input type="hidden" name="token" value="<%=token%>" />
+			<input type="hidden" name="save" value="1" />
+			<div class="cbi-value">
+				<label class="cbi-value-title" for="bot_token"><%:Bot Token %>*</label>
+				<div class="cbi-value-field"><input type="password" class="cbi-input-text" style="width:320px" id="bot_token" name="bot_token" value="<%=esc(cfg.bot_token)%>" placeholder="123456:ABC-DEF..."/></div>
+			</div>
+			<div class="cbi-value">
+				<label class="cbi-value-title" for="chat_id"><%:Chat ID %>*</label>
+				<div class="cbi-value-field"><input type="text" class="cbi-input-text" style="width:320px" id="chat_id" name="chat_id" value="<%=esc(cfg.chat_id)%>" placeholder="用户或群组的数字 ID，例如 123456789"/></div>
+			</div>
+			<div class="cbi-value">
+				<label class="cbi-value-title" for="allowed_users"><%:允许的用户 ID%></label>
+				<div class="cbi-value-field"><input type="text" class="cbi-input-text" style="width:320px" id="allowed_users" name="allowed_users" value="<%=esc(au_str)%>" placeholder="逗号分隔，留空=允许所有"/></div>
+			</div>
+			<div class="cbi-value">
+				<label class="cbi-value-title"><%:访问监控%></label>
+				<div class="cbi-value-field">
+					<label><input type="radio" name="monitor_on" value="1"<%=(cfg.monitor_on == true) and ' checked="checked"' or ''%>/> <%:开启%></label>
+					<label><input type="radio" name="monitor_on" value="0"<%=(cfg.monitor_on == false) and ' checked="checked"' or ''%>/> <%:关闭%></label>
+				</div>
+			</div>
+			<div class="cbi-page-actions">
+				<input type="submit" class="btn cbi-button cbi-button-apply" value="<%:保存 Telegram 设置%>" />
+			</div>
+		</form>
+	</div>
+
+	<div class="cbi-section cbi-section-node">
+		<h3><%:路由器列表%></h3>
+		<% if cfg.routers and #cfg.routers > 0 then %>
+		<table class="cbi-section-table" width="100%">
+			<tr class="cbi-section-table-titles">
+				<th class="cbi-section-table-cell"><%:ID%></th>
+				<th class="cbi-section-table-cell"><%:名称%></th>
+				<th class="cbi-section-table-cell"><%:地址%></th>
+				<th class="cbi-section-table-cell"><%:用户%></th>
+				<th class="cbi-section-table-cell"><%:操作%></th>
+			</tr>
+			<% for _, r in ipairs(cfg.routers) do %>
+			<tr class="cbi-section-table-row">
+				<td class="cbi-section-table-cell"><%=esc(r.id)%></td>
+				<td class="cbi-section-table-cell"><%=esc(r.name)%></td>
+				<td class="cbi-section-table-cell"><%=esc(r.host)%>:<%=esc(r.port)%></td>
+				<td class="cbi-section-table-cell"><%=esc(r.username)%></td>
+				<td class="cbi-section-table-cell">
+					<form method="post" action="<%=base%>" style="display:inline">
+						<input type="hidden" name="token" value="<%=token%>" />
+						<input type="hidden" name="router_act" value="del" />
+						<input type="hidden" name="router_id" value="<%=esc(r.id)%>" />
+						<input type="submit" class="btn cbi-button cbi-button-reset" value="<%:删除%>" onclick="return confirm('<%:确定删除此路由器？%>')" />
+					</form>
+				</td>
+			</tr>
+			<% end %>
+		</table>
+		<% else %>
+		<p><%:暂无路由器，请在下方添加。%></p>
+		<% end %>
+	</div>
+
+	<div class="cbi-section cbi-section-node">
+		<h3><%:添加路由器%></h3>
+		<form method="post" action="<%=base%>" class="cbi-form">
+			<input type="hidden" name="token" value="<%=token%>" />
+			<input type="hidden" name="router_act" value="add" />
+			<div class="cbi-value">
+				<label class="cbi-value-title" for="r_name"><%:名称 %>*</label>
+				<div class="cbi-value-field"><input type="text" class="cbi-input-text" style="width:280px" id="r_name" name="r_name" placeholder="例如 router1"/></div>
+			</div>
+			<div class="cbi-value">
+				<label class="cbi-value-title" for="r_host"><%:IP/域名 %>*</label>
+				<div class="cbi-value-field"><input type="text" class="cbi-input-text" style="width:280px" id="r_host" name="r_host" placeholder="192.168.10.1 或域名"/></div>
+			</div>
+			<div class="cbi-value">
+				<label class="cbi-value-title" for="r_port"><%:SSH 端口%></label>
+				<div class="cbi-value-field"><input type="number" class="cbi-input-text" style="width:120px" id="r_port" name="r_port" value="22"/></div>
+			</div>
+			<div class="cbi-value">
+				<label class="cbi-value-title" for="r_user"><%:用户 %>*</label>
+				<div class="cbi-value-field"><input type="text" class="cbi-input-text" style="width:200px" id="r_user" name="r_user" value="root"/></div>
+			</div>
+			<div class="cbi-value">
+				<label class="cbi-value-title" for="r_pass"><%:密码 %>*</label>
+				<div class="cbi-value-field"><input type="password" class="cbi-input-text" style="width:200px" id="r_pass" name="r_pass"/></div>
+			</div>
+			<div class="cbi-page-actions">
+				<input type="submit" class="btn cbi-button cbi-button-apply" value="<%:添加路由器%>" />
+			</div>
+		</form>
+	</div>
+</div>

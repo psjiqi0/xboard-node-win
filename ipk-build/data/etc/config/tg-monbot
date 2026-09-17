@@ -1,0 +1,4 @@
+config tg-monbot 'config'
+	option bot_token ''
+	option chat_id ''
+	option monitor_on '1'

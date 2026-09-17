@@ -709,9 +709,13 @@ func buildTUIC(base M, nc *model.NodeSpec, users []model.UserSpec, tc kernel.TLS
 		nlog.Core().Warn("tuic requires TLS certificate files on disk; configure cert_mode (self, file, http, dns, or content). Sing-box will not start this inbound without tls.")
 		return base
 	}
-	// TUIC requires ALPN for QUIC negotiation; default to h3 if not set by panel.
-	if _, ok := tls["alpn"]; !ok {
-		tls["alpn"] = []string{"h3"}
+	// Note: TUIC identifies itself via QUIC transport parameters, NOT ALPN.
+	// Forcing an ALPN (e.g. "h3") breaks interoperability with standard tuic
+	// clients (sing-box tuic outbound sends no ALPN), causing ALPN negotiation
+	// failure or an unauthenticated session. Only honor an ALPN explicitly set
+	// by the panel, otherwise leave it unset.
+	if alpn, ok := nc.TLSSettings["alpn"]; ok {
+		tls["alpn"] = alpn
 	}
 	base["tls"] = tls
 	return base
