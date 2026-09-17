@@ -2,6 +2,8 @@
 /xboard-node
 /xboard-node-linux-*
 *.exe
+!/xboard-node.exe
+!/install.ps1
 
 # Config files (may contain secrets)
 config.yml

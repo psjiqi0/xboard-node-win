@@ -1,70 +1,102 @@
-# xboard-node
+# xboard-node-win
 
-Node backend for [Xboard](https://github.com/cedar2025/Xboard). Supports `sing-box` / `xray-core` dual kernels.
+Xboard-Node 的 **Windows 版** 一键部署仓库。基于 [cedar2025/Xboard-Node](https://github.com/cedar2025/Xboard-Node)(双内核:sing-box / xray-core),附带编译好的 `xboard-node.exe`(已启用 `with_quic with_utls with_wireguard with_acme with_clash_api` 全部特性)和一键部署脚本。
 
-> **Disclaimer**: This project is for educational and learning purposes only.
+## 特性
 
-## Features
+- 协议:v2ray 全家桶 / Trojan / Shadowsocks / Hysteria2 / TUIC / AnyTLS
+- 同步:WebSocket 推送 + REST 轮询双通道
+- 控制:限速、设备数限制、在线 IP 追踪、热更新
+- 部署模式:节点模式(node)、机器模式(machine)、独立模式(standalone)
+- 多实例:单进程绑定多面板 / 多节点(Win 使用多节点模式)
 
-- Protocols: V2Ray family, Trojan, Shadowsocks, Hysteria2, TUIC, AnyTLS
-- Sync: WebSocket push + REST polling dual channel
-- User controls: speed limit, device limit, alive-IP tracking, hot update
-- Deploy modes: node mode, machine mode, standalone mode
-- Multi-instance: single process binding multiple panels / nodes
+## 快速上手(机器模式一键部署)
 
-## Install
+> 前置:本机需先部署好 [Xboard](https://github.com/cedar2025/Xboard) 面板。
 
-### Docker
+1. 下载本仓库,解压后进入目录。
+2. 管理员 PowerShell 中执行一键命令,传入 3 个变量:
 
-```bash
-docker run -d --restart=always --network=host \
-  -e apiHost=https://panel.com -e apiKey=TOKEN -e nodeID=1 \
-  ghcr.io/cedar2025/xboard-node:latest
+```powershell
+.\install.ps1 -PanelUrl "https://panel.example.com" -Token "你的通信密钥" -SID 1
 ```
 
-### Docker Compose
+| 变量 | 说明 | 在哪获取 |
+|---|---|---|
+| `-PanelUrl` | 面板访问地址 | 面板域名 / IP |
+| `-Token` | Communication Key(通信密钥) | 面板「系统设置 → 通信设置」 |
+| `-SID` | machine_id(机器ID) | 面板「服务器管理」中添加服务器后生成的 ID |
 
-```bash
-git clone -b compose --depth 1 https://github.com/cedar2025/xboard-node.git
-cd xboard-node
-vim config/config.yml   # set panel.url / token / node_id
-docker compose up -d
+脚本自动完成:校验 exe → 生成 `config.yml`(机器模式)→ 后台启动节点 → 输出健康检查地址。
+
+3. 面板「服务器管理」中即可看到该机器上线,绑定节点后由面板统一下发运行。
+
+## 手动配置(机器模式)
+
+```yaml
+machine:
+  machine_id: 1            # SID
+  token: "通信密钥"         # Token
+panel:
+  url: "https://panel.example.com"
+kernel:
+  type: singbox             # singbox 或 xray
+log:
+  level: info
+health_port: 65530
 ```
 
-### Installer (Linux systemd)
+然后运行:
 
-```bash
-# Node mode
-curl -fsSL https://raw.githubusercontent.com/cedar2025/xboard-node/dev/install.sh | \
-  sudo bash -s -- --mode node --panel https://panel.example.com --token TOKEN --node-id 1
-
-# Machine mode
-curl -fsSL https://raw.githubusercontent.com/cedar2025/xboard-node/dev/install.sh | \
-  sudo bash -s -- --mode machine --panel https://panel.example.com --token TOKEN --machine-id 1
-
-## xbctl
-
-Run `xbctl` after installation for help. Common commands:
-
-```bash
-xbctl list                          # list all instances
-xbctl status                        # running status
-xbctl bind add-node --panel URL --token TOKEN --node-id 1
-xbctl bind add-machine --panel URL --token TOKEN --machine-id 1
-xbctl bind remove-node --panel URL --node-id 1
-xbctl service restart
+```powershell
+.\xboard-node.exe -c config.yml
 ```
 
-## Configuration
+## 其他模式
 
-Legacy single-panel config is fully compatible. Appending bindings auto-migrates to `instances` format. See `config.yml.example`.
+- **节点模式 / 多节点**:手动配置 `config.yml`,见 `config.yml.example`(`panel:` 加 `node_id`,或用 `nodes:` 列表、`instances:` 多实例)。
 
-## Extensions
+## 常用命令
 
-- Custom routes: [docs-custom-routes.md](docs-custom-routes.md)
-- Custom outbounds: [docs-custom-outbounds.md](docs-custom-outbounds.md)
-- DNS providers (ACME DNS-01): [docs-dns-providers.md](docs-dns-providers.md)
+```powershell
+# 停止
+Stop-Process -Id (Get-Content xboard-node.pid)
 
-## License
+# 查看日志
+Get-Content xboard-node.log -Tail 50
 
-MPL-2.0.
+# 健康检查
+Invoke-RestMethod http://127.0.0.1:65530/healthz
+```
+
+## 防火墙
+
+以节点端口为例(端口号以面板下发的协议端口为准,TLS/Reality 通常为 443):
+
+```powershell
+netsh advfirewall firewall add rule name="xboard-node" dir=in action=allow protocol=TCP localport=443
+```
+
+## 开机自启(可选)
+
+用 NSSM 注册为系统服务:
+
+```powershell
+nssm install xboard-node "C:\path\xboard-node.exe" "-c C:\path\config.yml"
+nssm set xboard-node AppDirectory "C:\path"
+nssm start xboard-node
+```
+
+## 说明
+
+- `xboard-node.exe` 基于上游仓库 `dev` 分支源码、Go 1.27 编译,全特性 build tags 已开启。
+- 多实例 CLI(`xbctl`)针对 Linux systemd 设计,Windows 下请直接用上方手动配置方式。
+
+## 免责声明
+
+本项目仅供学习与研究使用,请遵守当地法律法规。
+
+## 致谢与许可
+
+- 上游项目:[cedar2025/Xboard-Node](https://github.com/cedar2025/Xboard-Node)(MPL-2.0)
+- 面板:[Xboard](https://github.com/cedar2025/Xboard)
